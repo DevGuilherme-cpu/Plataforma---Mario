@@ -1,4 +1,5 @@
 import pgzrun
+import random
 
 # Constants
 WIDTH = 800
@@ -21,7 +22,8 @@ class MainMenu:
         self.audio_button = Rect((300, 300), (200, 50))
         self.exit_button = Rect((300, 400), (200, 50))
         self.music_on = True
-        music.play("background_theme.wav")
+        try: music.play("background_theme.wav")
+        except: pass
 
     def draw(self):
         screen.fill((107, 140, 255)) 
@@ -55,7 +57,7 @@ class MainMenu:
                 music.pause()
 
         elif self.exit_button.collidepoint(pos):
-            sys.exit()
+            exit()
 
 class Platform:
     def __init__(self, x, y, width, height):
@@ -82,17 +84,20 @@ class Player:
         self.actor.draw()
 
     def update(self, platforms):
-        if keyboard.left:
+        # Movimentação Lateral: Aceita Setas ou A/D
+        if keyboard.left or keyboard.a:
             self.actor.x -= self.speed
             self.facing_right = False
-        elif keyboard.right:
+        elif keyboard.right or keyboard.d:
             self.actor.x += self.speed
             self.facing_right = True
 
+        # Gravidade
         self.velocity_y += self.gravity
         self.actor.y += self.velocity_y
         self.is_grounded = False
 
+        # Colisão com Plataformas
         for plat in platforms:
             if self.actor.colliderect(plat.rect):
                 if self.velocity_y > 0 and self.actor.bottom >= plat.rect.top:
@@ -100,7 +105,8 @@ class Player:
                     self.velocity_y = 0
                     self.is_grounded = True
 
-        if keyboard.up and self.is_grounded:
+        # Pulo: Aceita Seta para Cima ou W
+        if (keyboard.up or keyboard.w) and self.is_grounded:
             self.velocity_y = self.jump_strength
             self.is_grounded = False
 
@@ -110,7 +116,8 @@ class Player:
         direction = "right" if self.facing_right else "left"
         if not self.is_grounded:
             self.actor.image = f"player_jump_{direction}"
-        elif keyboard.left or keyboard.right:
+        # Ativa a animação de corrida se qualquer uma das teclas de andar estiver pressionada
+        elif keyboard.left or keyboard.right or keyboard.a or keyboard.d:
             self.animation_timer += 1
             if self.animation_timer > 6:
                 self.run_frame = 2 if self.run_frame == 1 else 1
@@ -169,36 +176,49 @@ class Flag:
 # ================= Funções do Jogo =================
 
 def reset_game():
-    global state, player, level_enemies, level_coins, score
+    global state, player, level_enemies, level_coins, score, level_platforms, level_flag
     score = 0
     player = Player(100, 100) 
     
+    level_platforms = [
+        Platform(0, 500, 800, 100)
+    ]
+    
+    plat1_x = random.randint(50, 200)
+    plat1_y = random.randint(350, 450)
+    level_platforms.append(Platform(plat1_x, plat1_y, 150, 20))
+    
+    plat2_x = random.randint(300, 450)
+    plat2_y = random.randint(250, 350)
+    level_platforms.append(Platform(plat2_x, plat2_y, 150, 20))
+    
+    plat3_x = random.randint(550, 650)
+    plat3_y = random.randint(150, 250)
+    level_platforms.append(Platform(plat3_x, plat3_y, 150, 20))
+
+    level_flag = Flag(plat3_x + 50, plat3_y - 40)
+    
+    enemy_floor_x = random.randint(300, 600)
     level_enemies = [
-        Enemy(400, 480, 100), 
-        Enemy(675, 180, 50)   
+        Enemy(enemy_floor_x, 480, 100), 
+        Enemy(plat2_x + 50, plat2_y - 20, 50)   
     ]
     
     level_coins = [
-        Coin(200, 360),
-        Coin(250, 360),
-        Coin(450, 260)
+        Coin(plat1_x + 50, plat1_y - 40),
+        Coin(plat2_x + 50, plat2_y - 40),
+        Coin(random.randint(200, 600), 460) 
     ]
     
     state = PLAYING
 
 # Inicialização
 menu = MainMenu()
-player = None
+player = Player(100, 100)
+level_platforms = [Platform(0, 500, 800, 100)]
 level_enemies = []
 level_coins = []
-level_flag = Flag(700, 160) # Bandeira no final da fase
-
-level_platforms = [
-    Platform(0, 500, 800, 100),   
-    Platform(150, 400, 150, 20),  
-    Platform(400, 300, 150, 20),  
-    Platform(600, 200, 150, 20)   
-]
+level_flag = Flag(700, 160)
 
 def draw():
     screen.clear()
@@ -230,7 +250,7 @@ def draw():
         screen.draw.text("Press ENTER to try again", center=(WIDTH/2, HEIGHT/2 + 30), fontsize=40, color="white")
         
     elif state == VICTORY:
-        screen.fill((0, 150, 0)) # Fundo verde para vitória
+        screen.fill((0, 150, 0)) 
         screen.draw.text("LEVEL COMPLETE!", center=(WIDTH/2, HEIGHT/2 - 50), fontsize=80, color="yellow", shadow=(2,2))
         screen.draw.text(f"FINAL SCORE: {score}", center=(WIDTH/2, HEIGHT/2 + 20), fontsize=50, color="white")
         screen.draw.text("Press ENTER to play again", center=(WIDTH/2, HEIGHT/2 + 80), fontsize=30, color="white")
@@ -250,23 +270,20 @@ def update():
         for enemy in level_enemies:
             enemy.update()
             
-        # Lógica de Colisão com Inimigos (Mario)
         for enemy in level_enemies[:]: 
             if player.actor.colliderect(enemy.actor):
                 if player.velocity_y > 0 and player.actor.bottom <= enemy.actor.top + 20:
                     level_enemies.remove(enemy) 
                     player.velocity_y = -12     
-                    score += 50 # Ganha pontos ao derrotar inimigo!
+                    score += 50 
                 else:
                     state = GAME_OVER
                     
-        # Lógica de Coleta de Moedas
         for coin in level_coins[:]:
             if player.actor.colliderect(coin.actor):
                 level_coins.remove(coin)
                 score += 10
                 
-        # Lógica de Chegada na Bandeira
         if player.actor.colliderect(level_flag.actor):
             state = VICTORY
                     
