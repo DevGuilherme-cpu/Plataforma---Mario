@@ -1,5 +1,4 @@
 import pgzrun
-import sys
 
 # Constants
 WIDTH = 800
